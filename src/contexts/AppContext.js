@@ -32,32 +32,32 @@ export const AppProvider = ({ children }) => {
   };
 
   const registerWorkstation = (packerId, workstationId) => {
-    // Require at least one field
-    if (!packerId && !workstationId) {
-      return { success: false, message: 'Harap isi minimal satu field (Packer ID atau Workstation ID)' };
+    // Require BOTH fields
+    if (!packerId || !workstationId) {
+      return { success: false, message: 'Workstation dan Packer ID harus diisi' };
     }
 
-    // Store whatever is provided
+    // Validate workstation exists
+    const workstation = MOCK_WORKSTATIONS.find(w => w.workstationId === workstationId);
+    if (!workstation) {
+      return { success: false, message: 'Workstation ID tidak valid' };
+    }
+
+    // Validate packer exists (optional - can accept any packer ID)
+    const packer = MOCK_PACKERS.find(p => p.packerId === packerId);
+
     const newSession = {
-      packerId: packerId || null,
-      workstationId: workstationId || null,
-      isRegistered: true
+      packerId: packerId,
+      workstationId: workstationId,
+      isRegistered: true,
+      line: workstation.line
     };
 
-    // Get additional data if available
-    if (packerId) {
-      const packer = MOCK_PACKERS.find(p => p.packerId === packerId);
-      if (packer) {
-        newSession.warehouse = packer.warehouse;
-        newSession.shift = packer.shift;
-      }
-    }
-
-    if (workstationId) {
-      const workstation = MOCK_WORKSTATIONS.find(w => w.workstationId === workstationId);
-      if (workstation) {
-        newSession.line = workstation.line;
-      }
+    // Add packer data if found
+    if (packer) {
+      newSession.warehouse = packer.warehouse;
+      newSession.shift = packer.shift;
+      newSession.name = packer.name;
     }
 
     setSession(newSession);

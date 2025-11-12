@@ -44,11 +44,17 @@ const Layout = ({ children }) => {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          {session && (
-            <div className="text-sm text-gray-700">
-              <span className="font-medium">{session.warehouse}</span>
-              <span className="mx-2">•</span>
-              <span>{session.workstation || session.workstationId}</span>
+          {session.isRegistered && session.workstationId && (
+            <div className="flex items-center gap-3">
+              <div className="text-sm text-gray-700">
+                <span className="text-[#1A73E8] font-medium">Packing workstation {session.workstationId}</span>
+                {session.warehouse && (
+                  <>
+                    <span className="mx-2 text-gray-400">•</span>
+                    <span className="text-gray-600">{session.warehouse}</span>
+                  </>
+                )}
+              </div>
             </div>
           )}
           <UserMenu />
