@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardHeader, CardContent } from './ui/card';
 import { ScanLine, AlertCircle, Package } from 'lucide-react';
 import { toast } from '../hooks/use-toast';
+
+const DEMO_HUS = [
+  'HU-1000000001',
+  'HU-1000000002',
+  'HU-9911223344',
+  'HU-5544332211',
+  'HU-7722334455',
+  'HU-6600221100'
+];
 
 const ScanHandlingUnit = () => {
   const { scanHandlingUnit, packerSession } = useApp();
@@ -13,8 +23,9 @@ const ScanHandlingUnit = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const handleScan = () => {
-    if (!huCode.trim()) {
+  const handleScan = (code = huCode) => {
+    const codeToScan = code.trim();
+    if (!codeToScan) {
       setError('Nomor handling unit harus diisi');
       return;
     }
@@ -23,18 +34,17 @@ const ScanHandlingUnit = () => {
     setError(null);
     
     setTimeout(() => {
-      const result = scanHandlingUnit(huCode.trim());
+      const result = scanHandlingUnit(codeToScan);
       if (result.success) {
         toast({
           title: 'Berhasil',
           description: `Handling unit ${result.data.hu} berhasil diklaim`
         });
-        // No need to call onSuccess - state change will trigger re-render
       } else {
         setError(result.message);
         toast({
-          title: 'Gagal',
-          description: result.message,
+          title: 'Handling Unit tidak ditemukan',
+          description: `Handling Unit tidak ditemukan: ${codeToScan}`,
           variant: 'destructive'
         });
       }
@@ -46,6 +56,15 @@ const ScanHandlingUnit = () => {
     if (e.key === 'Enter') {
       handleScan();
     }
+  };
+
+  const handleDemoChipClick = (demoHu) => {
+    setHuCode(demoHu);
+    setError(null);
+    // Auto-scan after filling
+    setTimeout(() => {
+      handleScan(demoHu);
+    }, 100);
   };
 
   return (
@@ -107,7 +126,7 @@ const ScanHandlingUnit = () => {
             </div>
             
             <Button
-              onClick={handleScan}
+              onClick={() => handleScan()}
               className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-6 text-base"
               disabled={loading}
             >
@@ -115,8 +134,20 @@ const ScanHandlingUnit = () => {
               {loading ? 'Memverifikasi...' : 'Scan Handling Unit'}
             </Button>
             
-            <div className="text-center text-sm text-gray-500">
-              <p>Demo HU: <span className="font-mono font-medium text-gray-700">HU-9911223344</span> atau <span className="font-mono font-medium text-gray-700">HU-8822114455</span></p>
+            {/* Demo HU Chips */}
+            <div className="pt-4 border-t border-gray-200">
+              <p className="text-sm text-gray-700 font-medium mb-3">Contoh HU demo:</p>
+              <div className="flex flex-wrap gap-2">
+                {DEMO_HUS.map((demoHu) => (
+                  <Badge
+                    key={demoHu}
+                    onClick={() => handleDemoChipClick(demoHu)}
+                    className="cursor-pointer bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-300 px-3 py-1.5 text-sm font-mono"
+                  >
+                    {demoHu}
+                  </Badge>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -14,9 +14,29 @@ export const useApp = () => {
 export const AppProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const [session, setSession] = useState({ packerId: null, workstationId: null, isRegistered: false });
+  const [session, setSession] = useState({ packerId: null, workstationId: null, isRegistered: false, clientId: null });
   const [currentHU, setCurrentHU] = useState(null);
-  const [manualMode, setManualMode] = useState(false);
+  const [recommendationsCache, setRecommendationsCache] = useState({ autoPlan: null, manualPlan: null });
+  const [activeScanItemId, setActiveScanItemId] = useState(null);
+
+  // Client packaging policies
+  const [clientPolicies] = useState({
+    "Tokopedia": {
+      "allowedBoxTypes": ["Box Type 001", "Box Type 002", "Box Type 003"],
+      "forbiddenMaterials": [],
+      "defaultSopTags": ["Bubble Wrap"]
+    },
+    "Shopee": {
+      "allowedBoxTypes": ["Box Type 001", "Box Type 003"],
+      "forbiddenMaterials": ["Peanuts"],
+      "defaultSopTags": ["Foam Corner"]
+    },
+    "Generic": {
+      "allowedBoxTypes": ["Box Type 001", "Box Type 002", "Box Type 003", "Flute A"],
+      "forbiddenMaterials": [],
+      "defaultSopTags": []
+    }
+  });
 
   const login = (username) => {
     setIsAuthenticated(true);
@@ -26,9 +46,8 @@ export const AppProvider = ({ children }) => {
   const logout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
-    setSession({ packerId: null, workstationId: null, isRegistered: false });
+    setSession({ packerId: null, workstationId: null, isRegistered: false, clientId: null });
     setCurrentHU(null);
-    setManualMode(false);
   };
 
   const registerWorkstation = (packerId, workstationId) => {
@@ -64,12 +83,66 @@ export const AppProvider = ({ children }) => {
     return { success: true, data: newSession };
   };
 
+  const applyClientPolicy = (recommendations, clientId) => {
+    const policy = clientPolicies[clientId] || clientPolicies['Generic'];
+    
+    // Filter boxes by allowed box types
+    const filteredBoxes = recommendations.boxes.filter(box => {
+      const boxType = box.boxType || box.name;
+      return policy.allowedBoxTypes.includes(boxType);
+    });
+    
+    // Apply defaultSopTags to each orderGroup
+    const updatedBoxes = filteredBoxes.map(box => {
+      const updatedOrderGroups = box.orderGroups?.map(og => {
+        // Merge client defaultSopTags with existing sopTags (dedupe)
+        const existingSopTags = og.sopTags || [];
+        const combinedTags = [...new Set([...policy.defaultSopTags, ...existingSopTags])];
+        
+        return {
+          ...og,
+          sopTags: combinedTags
+        };
+      }) || [];
+      
+      return {
+        ...box,
+        orderGroups: updatedOrderGroups
+      };
+    });
+    
+    return {
+      ...recommendations,
+      boxes: updatedBoxes
+    };
+  };
+
   const scanHandlingUnit = (huCode) => {
     const hu = MOCK_HANDLING_UNITS.find(h => h.hu === huCode);
     if (hu) {
       const huCopy = JSON.parse(JSON.stringify(hu));
+      
+      // Set client ID from HU
+      const clientId = huCopy.clientId || 'Generic';
+      const previousClientId = session.clientId;
+      
+      // Apply client policy to recommendations
+      const filteredRecommendations = applyClientPolicy(huCopy.recommendations, clientId);
+      huCopy.recommendations = filteredRecommendations;
+      
+      // Update session with client ID
+      setSession(prev => ({ ...prev, clientId }));
+      
+      // If clientId changed, clear manual cache
+      const shouldClearManualCache = previousClientId && previousClientId !== clientId;
+      
+      // Initialize with auto plan as default
       setCurrentHU(huCopy);
-      setManualMode(false);
+      setRecommendationsCache({ 
+        autoPlan: filteredRecommendations, 
+        manualPlan: shouldClearManualCache ? null : recommendationsCache.manualPlan 
+      });
+      
       return { success: true, data: huCopy };
     }
     return { success: false, message: 'Handling Unit tidak ditemukan atau tidak valid' };
@@ -166,18 +239,51 @@ export const AppProvider = ({ children }) => {
   };
 
   const toggleManualMode = () => {
-    const newMode = !manualMode;
-    setManualMode(newMode);
+    if (!currentHU) return { success: false, message: 'Tidak ada HU aktif' };
     
-    if (currentHU) {
+    const currentMode = currentHU.recommendations.mode;
+    const newMode = currentMode === 'auto' ? 'manual' : 'auto';
+    
+    if (newMode === 'manual') {
+      // Switching to manual: save current auto plan, restore manual plan
+      const updatedCache = {
+        autoPlan: JSON.parse(JSON.stringify(currentHU.recommendations)),
+        manualPlan: recommendationsCache.manualPlan
+      };
+      
+      const working = updatedCache.manualPlan || { mode: 'manual', boxes: [] };
+      
+      setRecommendationsCache(updatedCache);
       setCurrentHU({
         ...currentHU,
-        recommendations: {
-          ...currentHU.recommendations,
-          mode: newMode ? 'manual' : 'auto',
-          boxes: newMode ? [] : currentHU.recommendations.boxes
-        }
+        recommendations: working
       });
+      
+      return { 
+        success: true, 
+        message: 'Mode manual aktif. Rekomendasi otomatis disimpan sementara.',
+        mode: 'manual'
+      };
+    } else {
+      // Switching to auto: save current manual plan, restore auto plan
+      const updatedCache = {
+        autoPlan: recommendationsCache.autoPlan,
+        manualPlan: JSON.parse(JSON.stringify(currentHU.recommendations))
+      };
+      
+      const working = updatedCache.autoPlan || JSON.parse(JSON.stringify(MOCK_HANDLING_UNITS.find(h => h.hu === currentHU.hu)?.recommendations || { mode: 'auto', boxes: [] }));
+      
+      setRecommendationsCache(updatedCache);
+      setCurrentHU({
+        ...currentHU,
+        recommendations: working
+      });
+      
+      return { 
+        success: true, 
+        message: 'Mode otomatis aktif. Rencana otomatis dipulihkan.',
+        mode: 'auto'
+      };
     }
   };
 
@@ -202,13 +308,20 @@ export const AppProvider = ({ children }) => {
     };
     
     const updatedBoxes = [...(currentHU.recommendations?.boxes || []), newBox];
+    const updatedRecommendations = {
+      mode: 'manual',
+      boxes: updatedBoxes
+    };
+    
+    // Auto-save manual plan
+    setRecommendationsCache(prev => ({
+      ...prev,
+      manualPlan: updatedRecommendations
+    }));
     
     setCurrentHU({
       ...currentHU,
-      recommendations: {
-        mode: 'manual',
-        boxes: updatedBoxes
-      }
+      recommendations: updatedRecommendations
     });
     
     return { success: true, data: newBox };
@@ -228,12 +341,22 @@ export const AppProvider = ({ children }) => {
       return box;
     });
     
+    const updatedRecommendations = {
+      ...currentHU.recommendations,
+      boxes: updatedBoxes
+    };
+    
+    // Auto-save manual plan when in manual mode
+    if (currentHU.recommendations.mode === 'manual') {
+      setRecommendationsCache(prev => ({
+        ...prev,
+        manualPlan: updatedRecommendations
+      }));
+    }
+    
     setCurrentHU({
       ...currentHU,
-      recommendations: {
-        ...currentHU.recommendations,
-        boxes: updatedBoxes
-      }
+      recommendations: updatedRecommendations
     });
   };
 
@@ -260,12 +383,36 @@ export const AppProvider = ({ children }) => {
     return allItemsValid && hasSelectedBox && allBoxesScanned;
   };
 
+  const checkPolicyViolations = () => {
+    if (!currentHU || currentHU.recommendations.mode !== 'manual') {
+      return [];
+    }
+
+    const clientId = session.clientId || 'Generic';
+    const policy = clientPolicies[clientId];
+    const selectedBoxes = currentHU.recommendations.boxes.filter(box => box.status === 'selected');
+    const violations = [];
+
+    selectedBoxes.forEach(box => {
+      const boxType = box.boxType || box.name;
+      if (!policy.allowedBoxTypes.includes(boxType)) {
+        violations.push({
+          boxType,
+          message: `Box ini tidak termasuk dalam daftar box yang diizinkan untuk klien ${clientId}`
+        });
+      }
+    });
+
+    return violations;
+  };
+
   const submitPackage = () => {
     if (!isSubmitEnabled()) {
       return { success: false, message: 'Belum semua requirement terpenuhi' };
     }
     
     const selectedBoxes = currentHU.recommendations.boxes.filter(box => box.status === 'selected');
+    const violations = checkPolicyViolations();
     
     return {
       success: true,
@@ -278,13 +425,25 @@ export const AppProvider = ({ children }) => {
         items: currentHU.items,
         boxes: selectedBoxes,
         mode: currentHU.recommendations.mode
-      }
+      },
+      violations
     };
   };
 
   const startNewOrder = () => {
     setCurrentHU(null);
-    setManualMode(false);
+    setRecommendationsCache({ autoPlan: null, manualPlan: null });
+  };
+
+  const returnToScanHU = () => {
+    // Reset HU and caches but keep session
+    setCurrentHU(null);
+    setRecommendationsCache({ autoPlan: null, manualPlan: null });
+    setActiveScanItemId(null);
+  };
+
+  const setActiveScanItem = (itemId) => {
+    setActiveScanItemId(itemId);
   };
 
   const value = {
@@ -292,7 +451,9 @@ export const AppProvider = ({ children }) => {
     currentUser,
     session,
     currentHU,
-    manualMode,
+    recommendationsCache,
+    clientPolicies,
+    activeScanItemId,
     login,
     logout,
     registerWorkstation,
@@ -306,7 +467,9 @@ export const AppProvider = ({ children }) => {
     reassignItemToBox,
     isSubmitEnabled,
     submitPackage,
-    startNewOrder
+    startNewOrder,
+    returnToScanHU,
+    setActiveScanItem
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
