@@ -7,7 +7,6 @@ import { Label } from './ui/label';
 import { Card, CardHeader, CardContent } from './ui/card';
 import { Package, Lock, User } from 'lucide-react';
 import { toast } from '../hooks/use-toast';
-import { MOCK_USERS } from '../data/mockData';
 
 const Login = () => {
   const { login } = useApp();
@@ -17,41 +16,38 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!username || !password) {
-      toast({
-        title: 'Error',
-        description: 'Username dan password harus diisi',
-        variant: 'destructive'
-      });
-      return;
-    }
+  e.preventDefault();
 
-    setLoading(true);
-    
-    setTimeout(() => {
-      const user = MOCK_USERS.find(
-        u => u.username === username && u.password === password
-      );
-      
-      if (user) {
-        login(user.username);
-        toast({
-          title: 'Login Berhasil',
-          description: `Selamat datang, ${user.name}`,
-        });
-        navigate('/sales-order');
-      } else {
-        toast({
-          title: 'Login Gagal',
-          description: 'Username atau password salah',
-          variant: 'destructive'
-        });
-      }
-      setLoading(false);
-    }, 800);
-  };
+  if (!username || !password) {
+    toast({
+      title: "Error",
+      description: "Username dan password wajib diisi",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  setLoading(true);
+
+  const result = await login(username, password);
+
+  if (result.success) {
+    toast({
+      title: "Login Berhasil",
+      description: `Selamat datang, ${username}`,
+    });
+    navigate("/sales-order");
+  } else {
+    toast({
+      title: "Login Gagal",
+      description: result.message || "Username atau password salah",
+      variant: "destructive",
+    });
+  }
+
+  setLoading(false);
+};
+
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">

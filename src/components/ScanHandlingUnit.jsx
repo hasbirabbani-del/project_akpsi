@@ -1,3 +1,4 @@
+// src/components/ScanHandlingUnit.jsx
 import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { Button } from './ui/button';
@@ -8,38 +9,50 @@ import { ScanLine, AlertCircle, Package } from 'lucide-react';
 import { toast } from '../hooks/use-toast';
 
 const ScanHandlingUnit = () => {
-  const { scanHandlingUnit, packerSession } = useApp();
+  const { scanHandlingUnit, session } = useApp(); // <- pakai session dari context
   const [huCode, setHuCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const handleScan = () => {
-    if (!huCode.trim()) {
+  const handleScan = async () => {
+    const code = huCode.trim();
+    if (!code) {
       setError('Nomor handling unit harus diisi');
       return;
     }
 
     setLoading(true);
     setError(null);
-    
-    setTimeout(() => {
-      const result = scanHandlingUnit(huCode.trim());
+
+    try {
+      // PENTING: tunggu result dari AppContext.scanHandlingUnit (async)
+      const result = await scanHandlingUnit(code);
+
       if (result.success) {
         toast({
           title: 'Berhasil',
-          description: `Handling unit ${result.data.hu} berhasil diklaim`
+          description: `Handling unit ${result.data.hu} berhasil diklaim`,
         });
-        // No need to call onSuccess - state change will trigger re-render
+        // currentHU sudah di-set di context, ItemList akan rerender sendiri
       } else {
         setError(result.message);
         toast({
           title: 'Gagal',
-          description: result.message,
-          variant: 'destructive'
+          description: result.message || `Handling Unit tidak ditemukan: ${code}`,
+          variant: 'destructive',
         });
       }
+    } catch (e) {
+      console.error('Unhandled scan HU error:', e);
+      setError('Terjadi kesalahan saat scan handling unit');
+      toast({
+        title: 'Error',
+        description: 'Terjadi kesalahan saat scan handling unit',
+        variant: 'destructive',
+      });
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   const handleKeyPress = (e) => {
@@ -57,9 +70,11 @@ const ScanHandlingUnit = () => {
               <p className="text-xs text-gray-500 mb-1">Quality control / Sales order</p>
               <h1 className="text-2xl font-bold text-gray-900">Sales order</h1>
             </div>
-            {packerSession && (
+            {session?.workstationId && (
               <div className="text-right">
-                <p className="text-sm text-[#1A73E8] font-medium">Packing workstation {packerSession.workstation}</p>
+                <p className="text-sm text-[#1A73E8] font-medium">
+                  Packing workstation {session.workstationId}
+                </p>
               </div>
             )}
           </div>
@@ -72,12 +87,14 @@ const ScanHandlingUnit = () => {
                 <Package className="w-10 h-10 text-[#1A73E8]" />
               </div>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Scan handling unit dulu, ya</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Scan handling unit dulu, ya
+            </h2>
             <p className="text-sm text-gray-600">
               Jika tidak bisa scan, silakan masukkan nomor handling unit pada kolom isian di bawah ini.
             </p>
           </CardHeader>
-          
+
           <CardContent className="space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
@@ -88,9 +105,11 @@ const ScanHandlingUnit = () => {
                 </div>
               </div>
             )}
-            
+
             <div className="space-y-2">
-              <Label htmlFor="huCode" className="text-gray-700 font-medium">Nomor handling unit</Label>
+              <Label htmlFor="huCode" className="text-gray-700 font-medium">
+                Nomor handling unit
+              </Label>
               <Input
                 id="huCode"
                 type="text"
@@ -105,7 +124,7 @@ const ScanHandlingUnit = () => {
                 autoFocus
               />
             </div>
-            
+
             <Button
               onClick={handleScan}
               className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-6 text-base"
@@ -114,9 +133,14 @@ const ScanHandlingUnit = () => {
               <ScanLine className="w-5 h-5 mr-2" />
               {loading ? 'Memverifikasi...' : 'Scan Handling Unit'}
             </Button>
-            
+
             <div className="text-center text-sm text-gray-500">
-              <p>Demo HU: <span className="font-mono font-medium text-gray-700">HU-9911223344</span> atau <span className="font-mono font-medium text-gray-700">HU-8822114455</span></p>
+              <p>
+                Demo HU:
+                <span className="font-mono font-medium text-gray-700 ml-1">
+                  HU-GDN-0001
+                </span>
+              </p>
             </div>
           </CardContent>
         </Card>
