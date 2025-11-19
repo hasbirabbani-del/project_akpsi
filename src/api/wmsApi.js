@@ -114,3 +114,21 @@ export async function verifyItemApi(token, payload) {
     return {};
   }
 }
+
+export async function recommendBoxApi(accessToken, huCode) {
+  const res = await fetch("http://127.0.0.1:8000/api/qc/recommend-box/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ hu_code: huCode }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.hu_code || "Gagal mendapatkan rekomendasi box");
+  }
+
+  return res.json();
+}
