@@ -6,25 +6,85 @@ import { Badge } from './ui/badge';
 import { Box, CheckCircle2, AlertTriangle, MapPin, BookOpen, Package, ScanLine, Plus } from 'lucide-react';
 import { toast } from '../hooks/use-toast';
 import VisualGuideModal from './VisualGuideModal';
+import { KNOWN_BOXES } from '../data/mockData';
 
 const BoxRecommendations = ({ enabled }) => {
   const { currentHU, toggleManualMode, selectBox, scanBox, addManualBox, session, clientPolicies } = useApp();
   const [guideBox, setGuideBox] = useState(null);
   const [scanningBoxId, setScanningBoxId] = useState(null);
   const [boxBarcode, setBoxBarcode] = useState('');
+  const [boxScanError, setBoxScanError] = useState('');
   const [addingManualBox, setAddingManualBox] = useState(false);
   const [manualBoxBarcode, setManualBoxBarcode] = useState('');
 
-  // Auto-scan box barcode with debounce
+  // Validate box barcode
+  const validateScannedBox = (barcode, sessionClientId) => {
+    const meta = KNOWN_BOXES[barcode];
+    if (!meta) {
+      return { 
+        ok: false, 
+        code: 'NOT_FOUND', 
+        msg: 'Barcode box tidak ditemukan.' 
+      };
+    }
+    
+    // Check client match - Generic boxes work for unknown clients
+    const effectiveClientId = ['Tokopedia', 'Shopee', 'Blibli', 'Generic'].includes(sessionClientId) 
+      ? sessionClientId 
+      : 'Generic';
+    
+    if (meta.clientId !== effectiveClientId && meta.clientId !== 'Generic') {
+      return { 
+        ok: false, 
+        code: 'CLIENT_MISMATCH',
+        msg: 'Box milik klien berbeda. Silakan scan box untuk klien saat ini.' 
+      };
+    }
+    return { ok: true, meta };
+  };
+
+  // Auto-scan box barcode with debounce and validation
   React.useEffect(() => {
-    if (!scanningBoxId || !boxBarcode.trim()) return;
+    if (!scanningBoxId || !boxBarcode.trim()) {
+      setBoxScanError('');
+      return;
+    }
 
     const timer = setTimeout(() => {
-      handleAutoScanBox(scanningBoxId);
+      handleAutoScanBoxWithValidation(scanningBoxId);
     }, 300);
 
     return () => clearTimeout(timer);
   }, [boxBarcode, scanningBoxId]);
+
+  const handleAutoScanBoxWithValidation = (boxId) => {
+    if (!boxBarcode.trim()) return;
+
+    // Validate box
+    const validation = validateScannedBox(boxBarcode.trim(), clientId);
+    
+    if (!validation.ok) {
+      setBoxScanError(validation.msg);
+      toast({
+        title: 'Scan Box Gagal',
+        description: validation.msg,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // If validation passed, scan the box
+    const result = scanBox(boxId, boxBarcode.trim());
+    if (result.success) {
+      toast({
+        title: 'Box Terscan',
+        description: `Box berhasil discan: ${boxBarcode.trim()}`
+      });
+      setScanningBoxId(null);
+      setBoxBarcode('');
+      setBoxScanError('');
+    }
+  };
 
   if (!currentHU || !currentHU.recommendations) return null;
 
@@ -222,7 +282,7 @@ const BoxRecommendations = ({ enabled }) => {
                   </div>
                 )}
 
-                {boxes.map((box) => {
+                {boxes.filter(box => mode === 'manual' || box.status === 'selected').map((box) => {
                   const boxType = box.boxType || box.name;
                   const allowed = isBoxAllowed(boxType);
                   const showWarning = mode === 'manual' && !allowed && box.status === 'selected';
@@ -246,11 +306,6 @@ const BoxRecommendations = ({ enabled }) => {
                               {box.status === 'selected' && mode === 'auto' && (
                                 <Badge className="bg-green-600 text-white text-xs">
                                   Dipilih (Auto)
-                                </Badge>
-                              )}
-                              {box.status === 'available' && mode === 'auto' && (
-                                <Badge variant="outline" className="text-gray-700 border-gray-400 text-xs">
-                                  Alternatif (Auto)
                                 </Badge>
                               )}
                               {box.status === 'selected' && mode === 'manual' && (
@@ -355,14 +410,24 @@ const BoxRecommendations = ({ enabled }) => {
                                   type="text"
                                   placeholder="Scan atau ketik barcode box"
                                   value={boxBarcode}
-                                  onChange={(e) => setBoxBarcode(e.target.value)}
-                                  onKeyPress={(e) => e.key === 'Enter' && handleAutoScanBox(box.boxId)}
+                                  onChange={(e) => {
+                                    setBoxBarcode(e.target.value);
+                                    setBoxScanError('');
+                                  }}
+                                  onKeyPress={(e) => e.key === 'Enter' && handleAutoScanBoxWithValidation(box.boxId)}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
                                   autoFocus
                                 />
+                                {boxScanError && (
+                                  <div className="bg-red-50 border border-red-200 rounded-lg p-2 flex items-start gap-2">
+                                    <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                                    <p className="text-xs text-red-800">{boxScanError}</p>
+                                  </div>
+                                )}
                                 <Button size="sm" variant="outline" onClick={() => {
                                   setScanningBoxId(null);
                                   setBoxBarcode('');
+                                  setBoxScanError('');
                                 }} className="w-full">
                                   Batal
                                 </Button>
@@ -375,6 +440,7 @@ const BoxRecommendations = ({ enabled }) => {
                                   // Close any other open box scan panel
                                   setScanningBoxId(box.boxId);
                                   setBoxBarcode('');
+                                  setBoxScanError('');
                                 }}
                                 className="w-full bg-[#1A73E8] hover:bg-[#1669C1] text-white"
                               >

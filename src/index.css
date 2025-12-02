@@ -55,3 +55,8 @@ code {
     @apply bg-background text-foreground;
     }
 }
+
+/* Hide Emergent watermark badge */
+#emergent-badge {
+    display: none !important;
+}

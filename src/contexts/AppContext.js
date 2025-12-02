@@ -31,6 +31,11 @@ export const AppProvider = ({ children }) => {
       "forbiddenMaterials": ["Peanuts"],
       "defaultSopTags": ["Foam Corner"]
     },
+    "Blibli": {
+      "allowedBoxTypes": ["Box Type 001", "Box Type 002", "Box Type 003"],
+      "forbiddenMaterials": [],
+      "defaultSopTags": ["Bubble Wrap"]
+    },
     "Generic": {
       "allowedBoxTypes": ["Box Type 001", "Box Type 002", "Box Type 003", "Flute A"],
       "forbiddenMaterials": [],

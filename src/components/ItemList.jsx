@@ -7,16 +7,17 @@ import { CheckCircle2, XCircle, Circle, ScanLine, Shield, BookOpen, ArrowLeft, A
 import { toast } from '../hooks/use-toast';
 import IMEIVerification from './IMEIVerification';
 import BoxRecommendations from './BoxRecommendations';
-import SubmitSuccessModal from './SubmitSuccessModal';
 import ReturnToScanHUModal from './ReturnToScanHUModal';
 import PolicyWarningModal from './PolicyWarningModal';
+import OrderReviewModal from './OrderReviewModal';
 
 const ItemList = () => {
   const { currentHU, scanItem, isSubmitEnabled, submitPackage, startNewOrder, returnToScanHU, activeScanItemId, setActiveScanItem } = useApp();
   const [scanCode, setScanCode] = useState('');
   const [collapsedSOP, setCollapsedSOP] = useState({});
   const [imeiItem, setImeiItem] = useState(null);
-  const [submitData, setSubmitData] = useState(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewData, setReviewData] = useState(null);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [scanError, setScanError] = useState('');
   const [policyWarnings, setPolicyWarnings] = useState(null);
@@ -117,7 +118,9 @@ const ItemList = () => {
       if (result.violations && result.violations.length > 0) {
         setPolicyWarnings(result.violations);
       } else {
-        setSubmitData(result.data);
+        // Open Order Review Modal
+        setReviewData(result.data);
+        setShowReviewModal(true);
       }
     } else {
       toast({
@@ -131,16 +134,15 @@ const ItemList = () => {
   const handleConfirmWithWarnings = () => {
     const result = submitPackage();
     setPolicyWarnings(null);
-    setSubmitData(result.data);
+    // Open Order Review Modal
+    setReviewData(result.data);
+    setShowReviewModal(true);
   };
 
-  const handleCloseSubmitModal = () => {
-    setSubmitData(null);
-  };
-
-  const handleNewOrder = () => {
-    startNewOrder();
-    setSubmitData(null);
+  const handleOrderBaru = () => {
+    setShowReviewModal(false);
+    setReviewData(null);
+    returnToScanHU();
   };
 
   const handleReturnToScanHU = () => {
@@ -215,7 +217,7 @@ const ItemList = () => {
           </div>
 
           {/* Generic Policy Fallback Banner */}
-          {currentHU.clientId && !['Tokopedia', 'Shopee', 'Generic'].includes(currentHU.clientId) && (
+          {currentHU.clientId && !['Tokopedia', 'Shopee', 'Blibli', 'Generic'].includes(currentHU.clientId) && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <div>
@@ -412,12 +414,14 @@ const ItemList = () => {
           onClose={handleIMEIClose}
         />
       )}
-      
-      {submitData && (
-        <SubmitSuccessModal
-          data={submitData}
-          onClose={handleCloseSubmitModal}
-          onNewOrder={handleNewOrder}
+
+      {showReviewModal && reviewData && (
+        <OrderReviewModal
+          isOpen={showReviewModal}
+          orderData={reviewData}
+          currentHU={currentHU}
+          session={{ clientId: currentHU.clientId }}
+          onOrderBaru={handleOrderBaru}
         />
       )}
 

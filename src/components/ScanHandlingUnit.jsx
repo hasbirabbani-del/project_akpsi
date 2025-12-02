@@ -9,12 +9,9 @@ import { ScanLine, AlertCircle, Package } from 'lucide-react';
 import { toast } from '../hooks/use-toast';
 
 const DEMO_HUS = [
-  'HU-1000000001',
-  'HU-1000000002',
-  'HU-9911223344',
-  'HU-5544332211',
-  'HU-7722334455',
-  'HU-6600221100'
+  'HU-8811223344',
+  'HU-7711882299',
+  'HU-6600112299'
 ];
 
 const ScanHandlingUnit = () => {

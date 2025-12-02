@@ -470,15 +470,15 @@ function setupDevServer(config) {
           fs.writeFileSync(targetFile, code, "utf8");
 
           // Commit changes to git with timestamp
-          const timestamp = Date.now();
-          try {
-            // Use -c flag for per-invocation git config to avoid modifying any config
-            execSync(`git -c user.name="visual-edit" -c user.email="support@emergent.sh" add "${targetFile}"`);
-            execSync(`git -c user.name="visual-edit" -c user.email="support@emergent.sh" commit -m "visual_edit_${timestamp}"`);
-          } catch (gitError) {
-            console.error(`Git commit failed: ${gitError.message}`);
-            // Continue even if git fails - file write succeeded
-          }
+          // const timestamp = Date.now();
+          // try {
+          //   // Use -c flag for per-invocation git config to avoid modifying any config
+          //   execSync(`git -c user.name="visual-edit" -c user.email="support@emergent.sh" add "${targetFile}"`);
+          //   execSync(`git -c user.name="visual-edit" -c user.email="support@emergent.sh" commit -m "visual_edit_${timestamp}"`);
+          // } catch (gitError) {
+          //   console.error(`Git commit failed: ${gitError.message}`);
+          //   // Continue even if git fails - file write succeeded
+          // }
 
           // Clean up backup file after successful write and commit
           if (fs.existsSync(backupFile)) {
